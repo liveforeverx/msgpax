@@ -98,6 +98,17 @@ defmodule Msgpax.Unpacker do
   deftransform [0xDE, len::16],     do: map(len)
   deftransform [0xDF, len::32],     do: map(len)
 
+  # Ext
+  deftransform [0xD4, type, val::1-bytes],  do: ext(type, val)
+  deftransform [0xD5, type, val::2-bytes],  do: ext(type, val)
+  deftransform [0xD6, type, val::4-bytes],  do: ext(type, val)
+  deftransform [0xD7, type, val::8-bytes],  do: ext(type, val)
+  deftransform [0xD8, type, val::16-bytes], do: ext(type, val)
+
+  deftransform [0xC7, len, type, val::size(len)-bytes],     do: ext(type, val)
+  deftransform [0xC8, len::16, type, val::size(len)-bytes], do: ext(type, val)
+  deftransform [0xC9, len::32, type, val::size(len)-bytes], do: ext(type, val)
+
   defp transform(<<bin, _::bytes>>, _opts),
     do: throw({:invalid_format, bin})
 
@@ -129,5 +140,18 @@ defmodule Msgpax.Unpacker do
     {val, rest} = transform(rest, opts)
 
     map(rest, opts, len - 1, [{key, val} | acc])
+  end
+
+  defp ext(rest, %{exts: exts}, type, data) do
+    case Map.fetch(exts, type) do
+      {:ok, handler} ->
+        {handler.unpack(data), rest}
+
+      :error -> throw {:undefined_ext, type}
+    end
+  end
+
+  defp ext(_rest, _opts, type, _data) do
+    throw {:undefined_ext, type}
   end
 end
